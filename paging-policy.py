@@ -115,10 +115,15 @@ else:
     memory = []
     hits = 0
     miss = 0
+    # age counters for AGING
+    age_counters = {}
 
     if policy == 'FIFO':
         leftStr = 'FirstIn'
         riteStr = 'Lastin '
+    elif policy == 'AGING':
+        leftStr = 'Oldest'
+        riteStr = 'Newest'
     elif policy == 'LRU':
         leftStr = 'LRU'
         riteStr = 'MRU'
@@ -158,6 +163,11 @@ else:
             # print('BUG count, cachesize:', count, cachesize)
             if count == cachesize:
                 # must replace
+                if policy == 'AGING':
+                    # replace the page with the smallest counter value (oldest)
+                    victim_page = min(age_counters, key=age_counters.get)  # the oldest page
+                    victim = memory.pop(memory.index(victim_page))
+                    del age_counters[victim]
                 if policy == 'FIFO' or policy == 'LRU':
                     victim = memory.pop(0)
                 elif policy == 'MRU':
@@ -250,6 +260,12 @@ else:
                 print('LEN (a)', len(memory))
             if victim != -1:
                 assert(victim not in memory)
+            # initialize counter for the new page
+            age_counters[n] = 0
+
+        # increment all counters
+        for page in age_counters:
+            age_counters[page] += 1
 
         # after miss processing, update reference bit
         if n not in ref:
@@ -261,6 +277,12 @@ else:
         
         if cdebug:
             print('REF (a)', ref)
+
+        # reset the counter for the accessed page
+        if idx != -1:  # HIT
+            age_counters[n] = 0
+        else:          # MISS
+            age_counters[n] = 0
 
         if notrace == False:
             print('Access: %d  %s %s -> %12s <- %s Replaced:%s [Hits:%d Misses:%d]' % (n, hfunc(idx), leftStr, memory, riteStr, vfunc(victim), hits, miss))
