@@ -1,136 +1,105 @@
+# Політика заміни кешу AGING
 
-# Overview
+## Вступ
 
-This simulator, paging-policy.py, allows you to play around with different
-page-replacement policies. For example, let's examine how LRU performs with a
-series of page references with a cache of size 3:
+Політика **AGING** — це вдосконалений підхід до керування обмеженою пам'яттю кешу, яка відстежує "вік" сторінок. Вона має на меті замінювати сторінки, які не використовуються найдовше, надаючи перевагу довгостроковій бездіяльності, а не лише останнім зверненням, що є компромісом між простотою та ефективністю, і є надійним вибором для багатьох сценаріїв управління кешем.
 
-```sh
-  0 1 2 0 1 3 0 3 1 2 1
-```
+## Теорія та ідея політики AGING
 
-To do so, run the simulator as follows:
+Політика **AGING** працює за принципом присвоєння кожній сторінці кешу числового параметру *"віку"*. Якщо до сторінки не взертаються, тоді вік збільшується. А якщо сторінка використовується, то її вік скидається до нуля. Коли потрібно замінити сторінку, вибирається та, що має найвищий вік (тобто найбільш "стару").
 
-```sh
-prompt> ./paging-policy.py --addresses=0,1,2,0,1,3,0,3,1,2,1 
-                           --policy=LRU --cachesize=3 -c
+### Ключові концепції
+1. **Лічильник віку**: Кожна сторінка має асоційований лічильник, що відстежує, як довго вона не була використана.
+2. **Інкремент віку**: Через певні інтервали часу або після кожної операції вік всіх сторінок збільшується на 1.
+3. **Прийняття рішення щодо заміни**: Коли кеш заповнений, замінюється сторінка з найвищим віком.
+4. **Скидання при зверненні**: Коли сторінка звертається, її лічильник віку скидається на 0.
 
-And what you would see is:
+---
 
-ARG addresses 0,1,2,0,1,3,0,3,1,2,1
-ARG numaddrs 10
-ARG policy LRU
-ARG cachesize 3
-ARG maxpage 10
-ARG seed 0
+## Реалізація AGING
 
-Solving...
+Ось тезисний опис того, як політика **AGING** реалізується програмно:
 
-Access: 0 MISS LRU->      [br 0]<-MRU Replace:- [br Hits:0 Misses:1]
-Access: 1 MISS LRU->   [br 0, 1]<-MRU Replace:- [br Hits:0 Misses:2]
-Access: 2 MISS LRU->[br 0, 1, 2]<-MRU Replace:- [br Hits:0 Misses:3]
-Access: 0 HIT  LRU->[br 1, 2, 0]<-MRU Replace:- [br Hits:1 Misses:3]
-Access: 1 HIT  LRU->[br 2, 0, 1]<-MRU Replace:- [br Hits:2 Misses:3]
-Access: 3 MISS LRU->[br 0, 1, 3]<-MRU Replace:2 [br Hits:2 Misses:4]
-Access: 0 HIT  LRU->[br 1, 3, 0]<-MRU Replace:2 [br Hits:3 Misses:4]
-Access: 3 HIT  LRU->[br 1, 0, 3]<-MRU Replace:2 [br Hits:4 Misses:4]
-Access: 1 HIT  LRU->[br 0, 3, 1]<-MRU Replace:2 [br Hits:5 Misses:4]
-Access: 2 MISS LRU->[br 3, 1, 2]<-MRU Replace:0 [br Hits:5 Misses:5]
-Access: 1 HIT  LRU->[br 3, 2, 1]<-MRU Replace:0 [br Hits:6 Misses:5]
-```
-  
-The complete set of possible arguments for paging-policy is listed on the
-following page, and includes a number of options for varying the policy, how
-addresses are specified/generated, and other important parameters such as the
-size of the cache. 
+1. **Структури даних**:
+   - Використовуємо масив або словник для зберігання сторінок і їхніх віків.
+   - Можна додатково зберігати метадані сторінок для налагодження чи оптимізації.
 
-```sh
-prompt> ./paging-policy.py --help
-Usage: paging-policy.py [options]
+2. **Основні кроки**:
+   - **Звернення до сторінки**: Коли сторінка звертається:
+     - Якщо сторінка є в кеші, її вік скидається на 0.
+     - Якщо її немає в кеші:
+       - Перевіряється, чи є місце в кеші.
+       - Якщо кеш заповнений, вибирається сторінка з найвищим віком для заміни.
+       - Додається нова сторінка з віком 0.
+   - **Інкремент віку**: Після кожної операції або циклу інкрементується вік усіх сторінок, які не були використані.
 
-Options:
--h, --help      show this help message and exit
--a ADDRESSES, --addresses=ADDRESSES
-                a set of comma-separated pages to access; 
-                -1 means randomly generate
--f ADDRESSFILE, --addressfile=ADDRESSFILE
-                a file with a bunch of addresses in it
--n NUMADDRS, --numaddrs=NUMADDRS
-                if -a (--addresses) is -1, this is the 
-                number of addrs to generate
--p POLICY, --policy=POLICY
-                replacement policy: FIFO, LRU, LFU, OPT, 
-                                    UNOPT, RAND, CLOCK
--b CLOCKBITS, --clockbits=CLOCKBITS
-                for CLOCK policy, how many clock bits to use
--C CACHESIZE, --cachesize=CACHESIZE
-                size of the page cache, in pages
--m MAXPAGE, --maxpage=MAXPAGE
-                if randomly generating page accesses, 
-                this is the max page number
--s SEED, --seed=SEED  random number seed
--N, --notrace   do not print out a detailed trace
--c, --compute   compute answers for me
-```
-  
-As usual, "-c" is used to solve a particular problem, whereas without it, the
-accesses are just listed (and the program does not tell you whether or not a
-particular access is a hit or miss).
+## Порівняння з іншими політиками
+### AGING vs. LRU (Останнє нещодавнє використання):
+- **LRU** орієнтується лише на останнє використання сторінки, видаляючи сторінку, яку не використовували найостанніше.
+- **AGING** враховує як останнє використання, так і довгострокову бездіяльність через підрахунок віку сторінок.
+- **Перевага AGING:** краще працює в ситуаціях, коли патерни звернення до сторінок непередбачувані або циклічні, адже запобігає передчасній заміні сторінок, що використовуються час від часу.
 
-To generate a random problem, instead of using "-a/--addresses" to pass in
-some page references, you can instead pass in "-n/--numaddrs" as the number of
-addresses the program should randomly generate, with "-s/--seed" used to
-specify a different random seed. For example:
+### AGING vs. FIFO (Перший на вході — перший на виході):
+- **FIFO** замінює сторінку, яка була додана в кеш найраніше, без урахування того, скільки разів вона використовувалася.
+- **AGING** інтелектуально замінює сторінки на основі їх активності, а не часу їх додавання.
+- **Перевага AGING:** уникає передчасної заміни активно використовуваних сторінок.
 
-```sh
-prompt> ./paging-policy.py -s 10 -n 3
-.. .
-Assuming a replacement policy of FIFO, and a cache of size 3 pages,
-figure out whether each of the following page references hit or miss
-in the page cache.
-  
-Access: 5  Hit/Miss?  State of Memory?
-Access: 4  Hit/Miss?  State of Memory?
-Access: 5  Hit/Miss?  State of Memory?
-```
-  
-As you can see, in this example, we specify "-n 3" which means the program
-should generate 3 random page references, which it does: 5, 7, and 5. The
-random seed is also specified (10), which is what gets us those particular
-numbers. After working this out yourself, have the program solve the problem
-for you by passing in the same arguments but with "-c" (showing just the
-relevant part here):
+### AGING vs. CLOCK:
+- **CLOCK** використовує один біт доступу, щоб визначити, чи була сторінка "нещодавно використана".
+- **AGING** використовує більше бітів (або лічильників) для відстеження активності сторінок з більшою точністю.
+- **Перевага AGING:** забезпечує більш тонке управління заміною сторінок, особливо у складних робочих навантаженнях.
 
-```sh
-prompt> ./paging-policy.py -s 10 -n 3 -c
-...
-Solving...
+---
 
-Access: 5 MISS FirstIn->   [br 5] <-Lastin Replace:- [br Hits:0 Misses:1]
-Access: 4 MISS FirstIn->[br 5, 4] <-Lastin Replace:- [br Hits:0 Misses:2]
-Access: 5 HIT  FirstIn->[br 5, 4] <-Lastin Replace:- [br Hits:1 Misses:2]
-```
+## Коли використовувати AGING
+Політика AGING ефективна в таких випадках:
 
-The default policy is FIFO, though others are available, including LRU, MRU,
-OPT (the optimal replacement policy, which peeks into the future to see what
-is best to replace), UNOPT (which is the pessimal replacement), RAND (which
-does random replacement), and CLOCK (which does the clock algorithm). The
-CLOCK algorithm also takes another argument (-b), which states how many bits
-should be kept per page; the more clock bits there are, the better the
-algorithm should be at determining which pages to keep in memory.
+1. **Непередбачувані патерни доступу:** коли звернення до сторінок є нерегулярними.
+2. **Робочі навантаження з тимчасовою локальністю:** якщо певні сторінки активно використовуються певний час, а потім довгий час не використовуються, AGING забезпечує їх заміну.
+3. **Великі системи кешу:** Політика AGING працює добре в системах з великими кешами, де відстеження точного порядку звернень (як у LRU) може бути дорогим.
+4. **Збалансовані системи:** якщо для робочого навантаження важливо враховувати як останнє використання, так і тривалу бездіяльність, AGING забезпечує оптимальний компроміс.
 
-Other options include: "-C/--cachesize" which changes the size of the page
-cache; "-m/--maxpage" which is the largest page number that will be used if
-the simulator is generating references for you; and "-f/--addressfile" which
-lets you specify a file with addresses in them, in case you wish to get traces
-from a real application or otherwise use a long trace as input.
+---
 
-One last piece of fun: why are these two examples interesting?
+## Приклад роботи AGING
+### Сценарій:
+- **Розмір кешу:** 3
+- **Послідовність звернень:** `[0, 1, 2, 0, 1, 3, 0, 3, 1, 2, 1]`
+### Покрокове виконання:
 
-```sh
-./paging-policy.py -C 3 -a 1,2,3,4,1,2,5,1,2,3,4,5
-```
-and
-```sh
-./paging-policy.py -C 4 -a 1,2,3,4,1,2,5,1,2,3,4,5
-```
+| Звернення | Стан кешу    | Дія   | Видалена сторінка | Віки сторінок |
+|-----------|--------------|-------|-------------------|---------------|
+| 0         | [0]          | MISS  | -                 | [0]           |
+| 1         | [0, 1]       | MISS  | -                 | [1, 0]        |
+| 2         | [0, 1, 2]    | MISS  | -                 | [2, 1, 0]     |
+| 0         | [0, 1, 2]    | HIT   | -                 | [0, 2, 1]     |
+| 1         | [0, 1, 2]    | HIT   | -                 | [1, 0, 2]     |
+| 3         | [3, 1, 2]    | MISS  | 0                 | [0, 1, 2]     |
+| ...       | ...          | ...   | ...               | ...           |
+
+Наприкінці політика AGING досягає **показника хітів 54,55%**, що є порівнянним з LRU, але при цьому показує кращу стабільність у випадку нерегулярних патернів доступу.
+
+---
+
+## Переваги AGING
+
+1. Відстежує довгострокову бездіяльність, запобігаючи передчасній заміні сторінок.
+2. Добре адаптується до непередбачуваних або змішаних патернів доступу.
+3. Забезпечує збалансований підхід між простими та більш складними алгоритмами, такими як LRU чи FIFO.
+
+---
+
+## Недоліки
+
+1. Вимагає трохи більших обчислювальних ресурсів через необхідність відстеження віку всіх сторінок.
+2. Менш ефективна для робочих навантажень із чіткою та передбачуваною локальністю.
+
+---
+
+## Висновок
+
+Політика **AGING** є потужною стратегією заміни кешу, яка збалансовує простоту та ефективність. Вона враховує як останнє використання сторінок, так і довгострокову бездіяльність, що робить її придатною для різноманітних та динамічних workloads.
+
+---
+
+Детальніше про використання політик заміни сторінок можна дізнатися в [README.org.md](README.org.md).
